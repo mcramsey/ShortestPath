@@ -18,6 +18,7 @@ public class Dictionary {
     }
 
     public void load(InputStream dicInputStream) throws IOException {
+        mWordSet.clear();
         InputStreamReader reader = new InputStreamReader(dicInputStream);
         BufferedReader bufReader = new BufferedReader(reader);
         String line = bufReader.readLine();

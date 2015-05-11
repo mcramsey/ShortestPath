@@ -1,7 +1,10 @@
 package org.marshallramsey.shortestpath;
 
+import android.util.Log;
+
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 
 /**
@@ -9,8 +12,11 @@ import java.util.List;
  */
 public class PathFinder<T> {
 
+    private static final String TAG = "PathFinder";
+
     private ChildCreator<Node<T>> mChildCreator;
     private PathProvider<T> mPathProvider;
+    private HashMap<T, Integer> mVisitedNodeValues;
 
     public PathFinder(PathProvider<T> pathProvider, ChildCreator<Node<T>> childCreator) {
         mPathProvider = pathProvider;
@@ -24,7 +30,8 @@ public class PathFinder<T> {
      * @return shortest path or null if no path found
      */
     public List<T> getShortestPath(T startValue, T endValue) {
-        List<List<Node<T>>> foundPaths = new ArrayList<List<Node<T>>>();
+        mVisitedNodeValues = new HashMap<T, Integer>();
+        List<Node<T>> foundPath = null;
 
         List<Node<T>> curPath = new ArrayList<Node<T>>();
         curPath.add(new Node<T>(startValue, mChildCreator));
@@ -32,10 +39,23 @@ public class PathFinder<T> {
 
         while (!mPathProvider.isEmpty()) {
             curPath = mPathProvider.getNextPath();
+            // prune long branches that cannot be shortest found path
+            if (foundPath != null && foundPath.size() <= curPath.size()) {
+                // skip partial paths that are equal-to or longer than found shortest path
+                continue;
+            }
             Node<T> lastNode = curPath.get(curPath.size()-1);
             if (lastNode.hasValue(endValue)) {
-                foundPaths.add(curPath);
+                foundPath = curPath;
             } else {
+                // Skip previously visited children that were visted with shorter paths.
+                Integer shortestPathToNode = mVisitedNodeValues.get(lastNode.getValue());
+                if (shortestPathToNode != null && shortestPathToNode.intValue() <= curPath.size()) {
+                    // already found a shorter path to this node so skip
+                    continue;
+                }
+                mVisitedNodeValues.put(lastNode.getValue(), curPath.size());
+
                 List<Node<T>> children = lastNode.getChildren();
                 // Remove circular links
                 List<Node<T>> childList = new ArrayList<Node<T>>();
@@ -53,20 +73,7 @@ public class PathFinder<T> {
             }
         }
 
-        List<Node<T>> minLengthPath = getMinLengthPath(foundPaths);
-        return minLengthPath != null ? adaptPath(minLengthPath) : null;
-    }
-
-    private List<Node<T>> getMinLengthPath(List<List<Node<T>>> paths) {
-        List<Node<T>> minLengthPath = null;
-        int minLength = Integer.MAX_VALUE;
-        for (List<Node<T>> path : paths) {
-            if (path.size() < minLength) {
-                minLengthPath = path;
-                minLength = minLengthPath.size();
-            }
-        }
-        return minLengthPath;
+        return foundPath != null ? adaptPath(foundPath) : null;
     }
 
     private List<List<Node<T>>> makeChildPaths(List<Node<T>> curPath, List<Node<T>> children) {
